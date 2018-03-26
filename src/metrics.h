@@ -6,12 +6,14 @@
 
 using metrics_t = std::map<std::string, size_t>;
 
-class Metrics {
+class Metrics
+{
 private:
     metrics_t _metrics;
     std::mutex _metrics_mutex;
 
-    void _update(const std::string& metric, size_t increment) {
+    void _update(const std::string& metric, size_t increment)
+    {
         if(increment > 0) {
             auto it_m = _metrics.find(metric);
             if(it_m != _metrics.end())
@@ -23,23 +25,27 @@ private:
 
 public:
 
-    static Metrics& get_metrics() {
+    static Metrics& get_metrics()
+    {
         static Metrics metrics;
         return metrics;
     }
 
-    void update(metrics_t metrics) {
+    void update(metrics_t metrics)
+    {
         std::lock_guard<std::mutex> lock_thread(_metrics_mutex);
         for(auto &m : metrics)
             _update(m.first, m.second);
     }
 
-    void update(const std::string& metric, size_t increment = 1) {
+    void update(const std::string& metric, size_t increment = 1)
+    {
         std::lock_guard<std::mutex> lock_thread(_metrics_mutex);
         _update(metric, increment);
     }
 
-    void dump(const std::string& prefix = "", std::ostream& out = std::cout) {
+    void dump(const std::string& prefix = "", std::ostream& out = std::cout)
+    {
         std::lock_guard<std::mutex> lock_thread(_metrics_mutex);
         for(auto &m : _metrics) {
             if(!prefix.empty())

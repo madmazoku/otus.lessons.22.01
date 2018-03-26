@@ -7,7 +7,8 @@
 #include <map>
 
 template<typename T>
-class QueueProcessor {
+class QueueProcessor
+{
 private:
     std::queue<std::thread> _threads;
     std::queue<T> _tasks;
@@ -24,13 +25,16 @@ public:
     QueueProcessor() : _active_count(0), _terminate(false) {};
     virtual ~QueueProcessor() = default;
 
-    void start(size_t thread_count = std::thread::hardware_concurrency()) {
+    void start(size_t thread_count = std::thread::hardware_concurrency())
+    {
         size_t qid = 0;
         while(_threads.empty() || _threads.size() < thread_count) {
-            _threads.push(std::thread([this,qid](){
+            _threads.push(std::thread([this,qid]() {
                 while(true) {
                     std::unique_lock<std::mutex> lock_thread(_thread_mutex);
-                    _thread_cv.wait(lock_thread, [this](){ return !_tasks.empty() || _terminate; });
+                    _thread_cv.wait(lock_thread, [this]() {
+                        return !_tasks.empty() || _terminate;
+                    });
                     if(_tasks.empty() && _terminate)
                         break;
 
@@ -50,39 +54,49 @@ public:
         }
     }
 
-    void add(const T& task, bool now) {
+    void add(const T& task, bool now)
+    {
         std::unique_lock<std::mutex> lock_thread(_thread_mutex);
         _tasks.push(task);
         if(now)
             _thread_cv.notify_all();
     }
 
-    void wait() {
+    void wait()
+    {
         std::unique_lock<std::mutex> lock_thread(_thread_mutex);
-        std::cout << "wait: active: " << _active_count << " tasks: " << _tasks.empty() << std::endl;
-        _thread_cv.wait(lock_thread, [&](){ return _active_count == 0 && _tasks.empty(); });
+        _thread_cv.wait(lock_thread, [&]() {
+            return _active_count == 0 && _tasks.empty();
+        });
     }
 
-    void stop() {
+    void stop()
+    {
         std::lock_guard<std::mutex> lock_thread(_thread_mutex);
-        std::cout << "stop" << std::endl;
         _terminate = true;
         _thread_cv.notify_all();
     }
 
-    void clear() {
+    void clear()
+    {
         std::lock_guard<std::mutex> lock_thread(_thread_mutex);
-        std::cout << "clear" << std::endl;
         while(!_tasks.empty())
             _tasks.pop();
     }
 
-    void finish() {
-        std::cout << "finish" << std::endl;
+    void finish()
+    {
         while(!_threads.empty()) {
             _threads.front().join();
             _threads.pop();
         }
+    }
+
+    virtual void done()
+    {
+        stop();
+        wait();
+        finish();
     }
 };
 

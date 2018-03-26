@@ -2,7 +2,8 @@
 
 #include <cstddef>
 
-namespace async {
+namespace async
+{
 
 using handle_t = void *;
 

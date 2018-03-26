@@ -16,12 +16,14 @@
 using Command = std::tuple<time_t, std::string>;
 using Commands = std::vector<Command>;
 
-std::ostream& operator<<(std::ostream& out, const Command& command) {
+std::ostream& operator<<(std::ostream& out, const Command& command)
+{
     out << " {" << std::get<0>(command) << ", " << std::get<1>(command) << "}";
     return out;
 }
 
-std::ostream& operator<<(std::ostream& out, const Commands& commands) {
+std::ostream& operator<<(std::ostream& out, const Commands& commands)
+{
     for(auto c : commands)
         std::cerr << ' ' << c;
     return out;
@@ -31,40 +33,31 @@ class Processor : public QueueProcessor<Commands>
 {
 public:
 
-    Processor(size_t thread_count) : QueueProcessor<Commands>() {
+    Processor(size_t thread_count) : QueueProcessor<Commands>()
+    {
         start(thread_count);
     }
-    virtual ~Processor() {
-        std::cout << "~Processor" << std::endl;
-        done();
-        std::cout << "end ~Processor" << std::endl;
-    }
+    virtual ~Processor() = default;
 
-    void process(const Commands& commands) {
+    void process(const Commands& commands)
+    {
         add(commands, true);
-    }
-
-    void done() {
-        std::cout << "done" << std::endl;
-        stop();
-        wait();
-        finish();
-        std::cout << "end done" << std::endl;
     }
 };
 using Processors = std::vector<Processor*>;
 
-class ProcessorSubscriber
+class ProcessorSubscriber : public QueueProcessor<std::string>
 {
 private:
     Processors _processors;
     std::mutex _processors_mutex;
 
 public:
-
-    virtual ~ProcessorSubscriber() {
-        std::cout << "~ProcessorSubscriber" << std::endl;
+    ProcessorSubscriber(size_t thread_count) : QueueProcessor<std::string>()
+    {
+        start(thread_count);
     }
+    virtual ~ProcessorSubscriber() = default;
 
     void process(const Commands& commands)
     {
@@ -103,17 +96,8 @@ private:
     }
 
 public:
-    ConsolePrint() : Processor(1) { 
-        std::cout << "ConsolePrint" << std::endl;
-    }
-    virtual ~ConsolePrint() { 
-        std::cout << "~ConsolePrint" << std::endl;
-    }
-
-    static ConsolePrint* get_singleton() {
-        static ConsolePrint singleton;
-        return &singleton;
-    }
+    ConsolePrint() : Processor(1) { }
+    virtual ~ConsolePrint() = default;
 };
 
 class FilePrint : public Processor
@@ -157,20 +141,15 @@ private:
 
 public:
     FilePrint() : Processor(2) { }
-    virtual ~FilePrint() { 
-        std::cout << "~FilePrint" << std::endl;
-    }
-
-    static FilePrint* get_singleton() {
-        static FilePrint singleton;
-        return &singleton;
-    }
+    virtual ~FilePrint() = default;
 };
 
 class Reader : public ProcessorSubscriber
 {
 private:
     size_t _N;
+
+    std::mutex _commands_mutex;
 
     std::string _buffer;
     Commands _commands;
@@ -181,17 +160,17 @@ private:
         if(_commands.size() > 0) {
             Metrics::get_metrics().update("reader.blocks");
             Metrics::get_metrics().update("reader.commands", _commands.size());
-std::cout << _commands << std::endl;
 
             process(_commands);
             _commands.clear();
         }
     }
 
-    void process_line(const std::string& line) {
+    void process_line(const std::string& line)
+    {
         Metrics::get_metrics().update("reader.line_count");
         Metrics::get_metrics().update("reader.line_size", line.size());
-        std::cout << "line: '" << line << "'" << std::endl;
+
         if(line == "{") {
             if(_bracket_counter++ == 0)
                 flush();
@@ -205,9 +184,12 @@ std::cout << _commands << std::endl;
         }
     }
 
-    virtual void act(const std::string& data) {
+    virtual void act(const std::string& data, size_t qid)
+    {
         Metrics::get_metrics().update("reader.push_count");
         Metrics::get_metrics().update("reader.push_size", data.size());
+
+        std::lock_guard<std::mutex> lock_thread(_commands_mutex);
 
         _buffer.append(data);
         size_t start_pos = 0;
@@ -225,12 +207,8 @@ std::cout << _commands << std::endl;
     }
 
 public:
-    Reader(size_t N = 0) : _N(N), _bracket_counter(0)  {
-        std::cout << "Reader" << std::endl;
-    }
-    virtual ~Reader() { 
-        std::cout << "~Reader" << std::endl;
-    }
+    Reader(size_t N = 0) : ProcessorSubscriber(1), _N(N), _bracket_counter(0)  {}
+    virtual ~Reader() = default;
 
     void read(std::istream& in)
     {
@@ -242,12 +220,21 @@ public:
         done();
     }
 
-    void push(const char* data, size_t data_size) {
-        act(std::string{data, data_size});
+    void push(const char* data, size_t data_size)
+    {
+        add(std::string{data, data_size}, true);
     }
 
-    void done() {
-        if(_bracket_counter == 0)
-            flush();
+    virtual void done()
+    {
+        wait();
+
+        {
+            std::lock_guard<std::mutex> lock_thread(_commands_mutex);
+            if(_bracket_counter == 0)
+                flush();
+        }
+
+        ProcessorSubscriber::done();
     }
 };

@@ -4,7 +4,6 @@
 
 #include "../bin/version.h"
 
-#include "metrics.h"
 #include "async.h"
 
 int main(int argc, char** argv)

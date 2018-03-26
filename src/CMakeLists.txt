@@ -60,7 +60,7 @@ target_link_libraries(async_test
     async ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT}
 )
 
-install(TARGETS async 
+install(TARGETS async async_cli
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib
 )

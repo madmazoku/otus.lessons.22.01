@@ -12,7 +12,7 @@ set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME ON)
 
-find_package(Boost COMPONENTS unit_test_framework timer chrono REQUIRED)
+find_package(Boost COMPONENTS unit_test_framework timer REQUIRED)
 find_package(Threads REQUIRED)
 
 set(CPACK_GENERATOR DEB)

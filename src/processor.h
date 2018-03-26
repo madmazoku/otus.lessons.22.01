@@ -75,12 +75,14 @@ public:
 class ConsolePrint : public Processor
 {
 private:
+    Metrics* _metrics;
+
     virtual void act(const Commands& commands, size_t qid) final {
         if(commands.size() == 0)
             return;
 
-        Metrics::get_metrics().update("console.blocks", 1);
-        Metrics::get_metrics().update("console.commands", commands.size());
+        _metrics->update("console.blocks", 1);
+        _metrics->update("console.commands", commands.size());
 
         std::cout << "bulk: ";
         bool first = true;
@@ -96,13 +98,14 @@ private:
     }
 
 public:
-    ConsolePrint() : Processor(1) { }
+    ConsolePrint(Metrics* metrics) : Processor(1), _metrics(metrics) { }
     virtual ~ConsolePrint() = default;
 };
 
 class FilePrint : public Processor
 {
 private:
+    Metrics* _metrics;
     std::map<time_t, size_t> _log_counter;
     std::mutex _log_counter_mutex;
 
@@ -111,11 +114,11 @@ private:
             return;
 
         std::string prefix = "file.";
-        Metrics::get_metrics().update(prefix + "blocks");
-        Metrics::get_metrics().update(prefix + "commands", commands.size());
+        _metrics->update(prefix + "blocks");
+        _metrics->update(prefix + "commands", commands.size());
         prefix += boost::lexical_cast<std::string>(qid);
-        Metrics::get_metrics().update(prefix + ".blocks");
-        Metrics::get_metrics().update(prefix + ".commands", commands.size());
+        _metrics->update(prefix + ".blocks");
+        _metrics->update(prefix + ".commands", commands.size());
 
         std::string name = "bulk";
         time_t tm = std::get<0>(*(commands.begin()));
@@ -140,13 +143,14 @@ private:
     }
 
 public:
-    FilePrint() : Processor(2) { }
+    FilePrint(Metrics* metrics) : Processor(2), _metrics(metrics) { }
     virtual ~FilePrint() = default;
 };
 
 class Reader : public ProcessorSubscriber
 {
 private:
+    Metrics* _metrics;
     size_t _N;
 
     std::mutex _commands_mutex;
@@ -158,8 +162,8 @@ private:
     void flush()
     {
         if(_commands.size() > 0) {
-            Metrics::get_metrics().update("reader.blocks");
-            Metrics::get_metrics().update("reader.commands", _commands.size());
+            _metrics->update("reader.blocks");
+            _metrics->update("reader.commands", _commands.size());
 
             process(_commands);
             _commands.clear();
@@ -168,8 +172,8 @@ private:
 
     void process_line(const std::string& line)
     {
-        Metrics::get_metrics().update("reader.line_count");
-        Metrics::get_metrics().update("reader.line_size", line.size());
+        _metrics->update("reader.line_count");
+        _metrics->update("reader.line_size", line.size());
 
         if(line == "{") {
             if(_bracket_counter++ == 0)
@@ -184,16 +188,16 @@ private:
         }
     }
 
-    virtual void act(const std::string& data, size_t qid)
-    {
-        Metrics::get_metrics().update("reader.push_count");
-        Metrics::get_metrics().update("reader.push_size", data.size());
+    virtual void act(const std::string& data, size_t qid) final {
+        _metrics->update("reader.push_count");
+        _metrics->update("reader.push_size", data.size());
 
         std::lock_guard<std::mutex> lock_thread(_commands_mutex);
 
         _buffer.append(data);
         size_t start_pos = 0;
-        while(true) {
+        while(true)
+        {
             size_t end_pos = _buffer.find('\n', start_pos);
             if(end_pos != std::string::npos) {
                 process_line(_buffer.substr(start_pos, end_pos - start_pos));
@@ -207,7 +211,7 @@ private:
     }
 
 public:
-    Reader(size_t N = 0) : ProcessorSubscriber(1), _N(N), _bracket_counter(0)  {}
+    Reader(Metrics* metrics, size_t N = 0) : ProcessorSubscriber(1), _metrics(metrics), _N(N), _bracket_counter(0)  {}
     virtual ~Reader() = default;
 
     void read(std::istream& in)

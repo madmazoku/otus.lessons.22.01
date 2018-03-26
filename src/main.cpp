@@ -19,7 +19,5 @@ int main(int argc, char** argv)
     }
     async::disconnect(handle);
 
-    Metrics::get_metrics().dump();
-
     return 0;
 }

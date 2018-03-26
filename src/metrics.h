@@ -25,12 +25,6 @@ private:
 
 public:
 
-    static Metrics& get_metrics()
-    {
-        static Metrics metrics;
-        return metrics;
-    }
-
     void update(metrics_t metrics)
     {
         std::lock_guard<std::mutex> lock_thread(_metrics_mutex);
